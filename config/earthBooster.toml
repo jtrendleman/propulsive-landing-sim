@@ -1,0 +1,55 @@
+[environment]
+gravity = 9.81                         # m/s^2, constant for now
+seaLevelDensity = 1.225                # kg/m^3
+scaleHeight = 8500.0                   # m, exponential atmosphere. TODO: placeholder until atmosphere model is decided
+
+[environment.wind]
+meanSpeed = 0.0                        # m/s, nominal; Monte Carlo draws around this
+gustStd = 0.0                          # m/s, standard deviation of gusts
+
+[spacecraft.mass]
+dryMass = 1000.0                       # kg
+cgHeightDry = 3.0                      # m above the base plane. TODO: placeholder
+inertiaDry = [1500.0, 1500.0, 200.0]   # kg*m^2 principal moments about the dry CG, body [x, y, z], z along the rocket. TODO: placeholder
+
+[spacecraft.propellant]
+initialMass = 400.0                    # kg loaded at episode start
+density = 1000.0                       # kg/m^3, affects CG shift as it drains. TODO: placeholder
+tankBottomHeight = 0.5                 # m above base. TODO: placeholder
+tankRadius = 1.8                       # m, inner radius of the propellant tank. TODO: placeholder
+
+[spacecraft.engine]
+count = 1
+maxThrust = 20000.0                    # N, per engine at full throttle
+minThrottle = 0.30                     # fraction; below this the engine is off
+isp = 280.0                            # s
+maxGimbalAngle = 0.1745                # rad (10 deg). TODO: placeholder
+maxGimbalRate = 0.3491                 # rad/s (20 deg/s). TODO: placeholder
+
+[spacecraft.rcs]
+thrusterCount = 4
+thrustPerThruster = 400.0              # N. TODO: placeholder
+momentArm = 6.0                        # m from CG. TODO: placeholder
+
+[spacecraft.aero]
+dragCoefficient = 0.80
+referenceArea = 10.8                   # m^2
+gridFinArea = 0.0                      # m^2, total; zero means no fins yet. TODO: placeholder
+
+[spacecraft.landingGear]
+strutCount = 4
+strutStroke = 0.40                     # m, usable travel
+strutCrossSection = 0.002              # m^2, load-bearing area for stress. TODO: placeholder
+strutStiffness = 200000.0              # N/m. TODO: placeholder
+strutDamping = 20000.0                 # N*s/m. TODO: placeholder
+
+[spacecraft.structure]
+yieldStrength = 276.0e6                # Pa (6061-T6 aluminium). TODO: confirm material
+factorOfSafety = 1.5                   # dimensionless, applied to yield
+loadFactorLimit = 5.0                  # g, max allowed axial acceleration
+
+[mission]
+maxTime = 120.0                        # s, episode cutoff
+initialAltitude = 1000.0               # m. TODO: placeholder
+initialVerticalSpeed = -80.0           # m/s, negative = descending
+initialHorizontalOffset = 50.0         # m from pad. TODO: placeholder
