@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Landing Replay</title>
+<style>
+  :root {
+    --bg: #0a1a33; --bg2: #040a18; --panel: rgba(8, 16, 36, 0.86); --text: #e8eefc; --muted: #9db0d6;
+    --accent: #ffb000; --border: #243b66; --plotBg: #ffffff; --plotGrid: #d8d8d8; --plotText: #222; --plotLine: #0072bd;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --bg2: #ffffff; --panel: rgba(255, 255, 255, 0.92); --text: #1a1a1a; --muted: #555;
+    --accent: #d95319; --border: #c8c8c8;
+  }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.4 "Helvetica Neue", Arial, sans-serif; overflow: hidden; }
+  #layout { display: grid; grid-template-columns: 1fr 340px; grid-template-rows: 1fr auto; height: 100%; }
+  #scene { position: relative; grid-column: 1; grid-row: 1; min-height: 0; }
+  #scene canvas { display: block; }
+  #plots { grid-column: 2; grid-row: 1 / span 2; background: var(--plotBg); border-left: 1px solid var(--border); display: grid; grid-template-rows: repeat(6, 1fr); gap: 0; min-height: 0; }
+  #plots canvas { width: 100%; height: 100%; display: block; }
+  #hud { position: absolute; top: 12px; left: 12px; background: var(--panel); border: 1px solid var(--border); padding: 10px 14px; border-radius: 6px; min-width: 250px; }
+  #hud h1 { margin: 0 0 6px; font-size: 14px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
+  #hud table { border-collapse: collapse; width: 100%; }
+  #hud td { padding: 1px 8px 1px 0; color: var(--muted); white-space: nowrap; }
+  #hud td:last-child { color: var(--text); font-variant-numeric: tabular-nums; text-align: right; font-family: "SF Mono", Menlo, Consolas, monospace; }
+  #end { color: var(--accent); font-weight: 700; }
+  #legend { position: absolute; right: 12px; top: 12px; background: var(--panel); border: 1px solid var(--border); padding: 8px 10px; border-radius: 6px; display: flex; gap: 10px; align-items: stretch; }
+  #legend canvas { width: 22px; height: 180px; }
+  #legend .ticks { display: flex; flex-direction: column; justify-content: space-between; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 11px; color: var(--text); }
+  #legend select { position: absolute; left: 0; top: 100%; margin-top: 6px; width: 100%; }
+  #keys { position: absolute; left: 12px; bottom: 12px; background: var(--panel); border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
+  #keys span::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 2px; vertical-align: -1px; background: var(--k); }
+  #controls { grid-column: 1; grid-row: 2; background: var(--panel); border-top: 1px solid var(--border); padding: 8px 12px; display: flex; gap: 10px; align-items: center; }
+  button, select { background: #1b2b4f; color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 5px 10px; font: inherit; cursor: pointer; }
+  :root[data-theme="light"] button, :root[data-theme="light"] select { background: #f2f2f2; }
+  #playButton { background: var(--accent); color: #141414; border-color: transparent; font-weight: 700; min-width: 72px; }
+  input[type=range] { flex: 1; }
+  #stamp { font-family: "SF Mono", Menlo, Consolas, monospace; min-width: 92px; text-align: right; }
+  @media (max-width: 900px) {
+    #layout { grid-template-columns: 1fr; grid-template-rows: 55vh auto 45vh; }
+    #plots { grid-column: 1; grid-row: 3; border-left: 0; border-top: 1px solid var(--border); grid-template-rows: repeat(3, 1fr); grid-template-columns: 1fr 1fr; }
+    #legend { display: none; } #keys { display: none; } #hud { min-width: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="layout">
+  <div id="scene">
+    <div id="hud">
+      <h1>Propulsive landing replay</h1>
+      <table>
+        <tr><td>time</td><td id="hudTime"></td></tr>
+        <tr><td>feet altitude</td><td id="hudAlt"></td></tr>
+        <tr><td>vertical speed</td><td id="hudVz"></td></tr>
+        <tr><td>speed</td><td id="hudSpeed"></td></tr>
+        <tr><td>tilt</td><td id="hudTilt"></td></tr>
+        <tr><td>load factor</td><td id="hudLoad"></td></tr>
+        <tr><td>throttle</td><td id="hudThrottle"></td></tr>
+        <tr><td>gimbal x / y</td><td id="hudGimbal"></td></tr>
+        <tr><td>propellant</td><td id="hudProp"></td></tr>
+        <tr><td>offset from pad</td><td id="hudOffset"></td></tr>
+        <tr><td>zero-effort miss</td><td id="hudZem"></td></tr>
+        <tr><td>wind</td><td id="hudWind"></td></tr>
+        <tr><td>end</td><td id="end">running</td></tr>
+      </table>
+    </div>
+    <div id="legend">
+      <canvas id="legendCanvas" width="22" height="180"></canvas>
+      <div class="ticks"><span id="legendMax"></span><span id="legendMid"></span><span id="legendMin"></span></div>
+      <select id="colorSelect">
+        <option value="speed" selected>speed [m/s]</option>
+        <option value="vz">vertical speed [m/s]</option>
+        <option value="throttle">throttle [-]</option>
+        <option value="tilt">tilt [deg]</option>
+        <option value="load">load factor [g]</option>
+        <option value="propellant">propellant [-]</option>
+      </select>
+    </div>
+    <div id="keys">
+      <span style="--k:#ff8c00">thrust vector</span>
+      <span style="--k:#00d5ff">velocity</span>
+      <span style="--k:#ff3b3b">zero-effort impact</span>
+      <span style="--k:#9aa8c7">ground track</span>
+    </div>
+  </div>
+  <div id="plots">
+    <canvas id="plotAlt"></canvas><canvas id="plotVz"></canvas><canvas id="plotThrottle"></canvas>
+    <canvas id="plotGimbal"></canvas><canvas id="plotTilt"></canvas><canvas id="plotLoad"></canvas>
+  </div>
+  <div id="controls">
+    <button id="playButton">Pause</button>
+    <input id="timeSlider" type="range" min="0" max="1000" value="0">
+    <span id="stamp"></span>
+    <select id="speedSelect">
+      <option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option><option value="4">4x</option>
+    </select>
+    <select id="cameraSelect">
+      <option value="chase" selected>chase camera</option><option value="pad">pad camera</option><option value="free">free orbit</option>
+    </select>
+    <select id="themeSelect">
+      <option value="dark" selected>dark theme</option><option value="light">light theme</option>
+    </select>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { Line2 } from "three/addons/lines/Line2.js";
+import { LineGeometry } from "three/addons/lines/LineGeometry.js";
+import { LineMaterial } from "three/addons/lines/LineMaterial.js";
+
+const replay = /*__REPLAY_DATA__*/;
+const frames = replay.frames;
+const geo = replay.geometry;
+const duration = frames[frames.length - 1].t;
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, s) => a + s * (b - a);
+
+// ---------- colormap (MATLAB jet) ----------
+function jet(t) {
+  t = clamp(t, 0, 1);
+  return [clamp(1.5 - Math.abs(4 * t - 3), 0, 1), clamp(1.5 - Math.abs(4 * t - 2), 0, 1), clamp(1.5 - Math.abs(4 * t - 1), 0, 1)];
+}
+
+// ---------- renderer, scene, camera (world is z-up, same as the simulator) ----------
+const container = document.getElementById("scene");
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 8000);
+camera.up.set(0, 0, 1);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+scene.add(new THREE.HemisphereLight(0xbfd0ff, 0x30342c, 0.8));
+const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -60; sun.shadow.camera.right = 60; sun.shadow.camera.top = 60; sun.shadow.camera.bottom = -60;
+sun.shadow.camera.near = 10; sun.shadow.camera.far = 1500;
+scene.add(sun);
+const sunTarget = new THREE.Object3D(); scene.add(sunTarget); sun.target = sunTarget;
+
+// ---------- ground, grid, pad, axis triad ----------
+const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x1c2a44, roughness: 1.0 });
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), groundMaterial);
+ground.receiveShadow = true;
+scene.add(ground);
+const gridMinor = new THREE.GridHelper(2000, 200, 0x3a4f7a, 0x2b3d61);   // 10 m
+const gridMajor = new THREE.GridHelper(2000, 20, 0x5f7bb3, 0x5f7bb3);    // 100 m
+for (const g of [gridMinor, gridMajor]) { g.rotation.x = Math.PI / 2; g.position.z = 0.03; scene.add(g); }
+
+const pad = new THREE.Mesh(new THREE.CylinderGeometry(12, 12, 0.3, 64), new THREE.MeshStandardMaterial({ color: 0x7c8694, roughness: 0.8 }));
+pad.geometry.rotateX(Math.PI / 2); pad.position.z = 0.15; pad.receiveShadow = true; scene.add(pad);
+for (const [r, color] of [[0.5, 0xffb000], [4, 0xffffff], [8, 0xffffff]]) {
+  const ring = new THREE.Mesh(new THREE.RingGeometry(r - 0.12, r + 0.12, 96), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
+  ring.position.z = 0.32; scene.add(ring);
+}
+
+function textSprite(text, color, size) {
+  const c = document.createElement("canvas"); c.width = 256; c.height = 96;
+  const ctx = c.getContext("2d");
+  ctx.font = "bold 56px Helvetica, Arial, sans-serif"; ctx.fillStyle = color; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(text, 128, 48);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true }));
+  sprite.scale.set(size * 2.67, size, 1);
+  return sprite;
+}
+const triad = new THREE.Group();
+for (const [dir, color, label] of [[[1, 0, 0], 0xff4040, "X"], [[0, 1, 0], 0x40d040, "Y"], [[0, 0, 1], 0x4080ff, "Z"]]) {
+  const d = new THREE.Vector3(...dir);
+  triad.add(new THREE.ArrowHelper(d, new THREE.Vector3(0, 0, 0.4), 20, color, 4, 2));
+  const s = textSprite(label, "#" + color.toString(16).padStart(6, "0"), 5); s.position.copy(d).multiplyScalar(24).setZ(d.z * 24 + 0.4); triad.add(s);
+}
+triad.position.set(16, -16, 0);
+scene.add(triad);
+for (const x of [100, 200, 300, 400, 500]) {
+  const s = textSprite(x + " m", "#9db0d6", 6); s.position.set(x, -6, 1); scene.add(s);
+  const s2 = textSprite(x + " m", "#9db0d6", 6); s2.position.set(-6, x, 1); scene.add(s2);
+}
+
+// ---------- rocket: group origin is the CG; hull is shifted so the base plane sits at -cg ----------
+const rocket = new THREE.Group(); scene.add(rocket);
+const hull = new THREE.Group(); rocket.add(hull);
+const skin = new THREE.MeshStandardMaterial({ color: 0xe4e9f0, metalness: 0.3, roughness: 0.45 });
+const dark = new THREE.MeshStandardMaterial({ color: 0x1d2330, metalness: 0.6, roughness: 0.4 });
+const bodyLength = geo.bodyLength, noseLength = Math.min(2.5, bodyLength * 0.25);
+const body = new THREE.Mesh(new THREE.CylinderGeometry(geo.bodyRadius, geo.bodyRadius, bodyLength - noseLength, 48), skin);
+body.geometry.rotateX(Math.PI / 2); body.position.z = (bodyLength - noseLength) / 2; body.castShadow = true; hull.add(body);
+const nose = new THREE.Mesh(new THREE.ConeGeometry(geo.bodyRadius, noseLength, 48), skin);
+nose.geometry.rotateX(Math.PI / 2); nose.position.z = bodyLength - noseLength / 2; nose.castShadow = true; hull.add(nose);
+const skirt = new THREE.Mesh(new THREE.CylinderGeometry(geo.bodyRadius * 1.02, geo.bodyRadius * 1.02, 0.6, 48), dark);
+skirt.geometry.rotateX(Math.PI / 2); skirt.position.z = 0.3; hull.add(skirt);
+for (let i = 0; i < geo.strutCount; i++) {
+  const a = 2 * Math.PI * i / geo.strutCount;
+  const foot = new THREE.Vector3(geo.footRadius * Math.cos(a), geo.footRadius * Math.sin(a), 0);
+  const top = new THREE.Vector3(geo.bodyRadius * 0.95 * Math.cos(a), geo.bodyRadius * 0.95 * Math.sin(a), bodyLength * 0.3);
+  const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, top.distanceTo(foot), 12), dark);
+  leg.position.copy(top).add(foot).multiplyScalar(0.5);
+  leg.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3().subVectors(top, foot).normalize());
+  leg.castShadow = true; hull.add(leg);
+  const footPad = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16), dark);
+  footPad.geometry.rotateX(Math.PI / 2); footPad.position.copy(foot).setZ(0.05); hull.add(footPad);
+}
+const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.35, 0.9, 32, 1, true),
+  new THREE.MeshStandardMaterial({ color: 0x3a3f4a, metalness: 0.8, roughness: 0.3, side: THREE.DoubleSide }));
+nozzle.geometry.rotateX(Math.PI / 2); nozzle.position.z = 0.45; hull.add(nozzle);
+
+// Flame: cone below the base plane, tilted with the gimbal, scaled with throttle.
+const flame = new THREE.Group(); hull.add(flame);
+for (const [r, color, opacity] of [[0.5, 0xffa040, 0.85], [0.25, 0xfff2c0, 0.95]]) {
+  const m = new THREE.Mesh(new THREE.ConeGeometry(r, 1, 24), new THREE.MeshBasicMaterial({ color, transparent: true, opacity }));
+  m.geometry.rotateX(Math.PI / 2); m.geometry.rotateY(Math.PI); flame.add(m);   // tip pointing -z
+}
+const flameLight = new THREE.PointLight(0xffa040, 0, 60, 2); flame.add(flameLight);
+
+// Body axis line through the rocket (helps read tilt against the vertical).
+const axisLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, -4), new THREE.Vector3(0, 0, bodyLength + 6)]),
+  new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 1, gapSize: 0.6, transparent: true, opacity: 0.5 }));
+axisLine.computeLineDistances(); hull.add(axisLine);
+
+// ---------- vectors: thrust (body), velocity (world), zero-effort impact marker, drop line ----------
+const thrustArrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(), 1, 0xff8c00, 2.5, 1.2); scene.add(thrustArrow);
+const velocityArrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(), 1, 0x00d5ff, 2.5, 1.2); scene.add(velocityArrow);
+const zemMarker = new THREE.Group();
+for (const rot of [Math.PI / 4, -Math.PI / 4]) {
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(6, 0.5, 0.2), new THREE.MeshBasicMaterial({ color: 0xff3b3b }));
+  bar.rotation.z = rot; zemMarker.add(bar);
+}
+const zemRing = new THREE.Mesh(new THREE.RingGeometry(3.6, 4.2, 48), new THREE.MeshBasicMaterial({ color: 0xff3b3b, side: THREE.DoubleSide }));
+zemMarker.add(zemRing); zemMarker.position.z = 0.4; scene.add(zemMarker);
+const zemLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+  new THREE.LineDashedMaterial({ color: 0xff3b3b, dashSize: 3, gapSize: 2, transparent: true, opacity: 0.6 }));
+scene.add(zemLine);
+const dropLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+  new THREE.LineBasicMaterial({ color: 0x9aa8c7, transparent: true, opacity: 0.5 }));
+scene.add(dropLine);
+const groundDot = new THREE.Mesh(new THREE.CircleGeometry(1.2, 32), new THREE.MeshBasicMaterial({ color: 0x9aa8c7 }));
+groundDot.position.z = 0.35; scene.add(groundDot);
+
+// ---------- trails: colour-mapped flight path (fat line) and grey ground track ----------
+const positions = [], groundPositions = [];
+for (const f of frames) { positions.push(f.p[0], f.p[1], f.p[2]); groundPositions.push(f.p[0], f.p[1], 0.25); }
+const trailGeometry = new LineGeometry(); trailGeometry.setPositions(positions);
+const trailMaterial = new LineMaterial({ vertexColors: true, linewidth: 4, worldUnits: false });
+const trail = new Line2(trailGeometry, trailMaterial); scene.add(trail);
+const groundGeometry = new LineGeometry(); groundGeometry.setPositions(groundPositions);
+const groundTrack = new Line2(groundGeometry, new LineMaterial({ color: 0x9aa8c7, linewidth: 2, transparent: true, opacity: 0.7 })); scene.add(groundTrack);
+
+const colorRange = { min: 0, max: 1 };
+function recolorTrail(key) {
+  const values = frames.map(f => f[key]);
+  colorRange.min = Math.min(...values); colorRange.max = Math.max(...values);
+  if (colorRange.max - colorRange.min < 1e-9) colorRange.max = colorRange.min + 1;
+  const colors = [];
+  for (const v of values) colors.push(...jet((v - colorRange.min) / (colorRange.max - colorRange.min)));
+  trailGeometry.setColors(colors);
+  drawLegend(key);
+}
+const legendCanvas = document.getElementById("legendCanvas");
+function drawLegend(key) {
+  const ctx = legendCanvas.getContext("2d");
+  for (let y = 0; y < legendCanvas.height; y++) {
+    const [r, g, b] = jet(1 - y / (legendCanvas.height - 1));
+    ctx.fillStyle = `rgb(${255 * r | 0},${255 * g | 0},${255 * b | 0})`; ctx.fillRect(0, y, legendCanvas.width, 1);
+  }
+  const fmt = v => Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(2);
+  document.getElementById("legendMax").textContent = fmt(colorRange.max);
+  document.getElementById("legendMid").textContent = fmt(0.5 * (colorRange.min + colorRange.max));
+  document.getElementById("legendMin").textContent = fmt(colorRange.min);
+}
+const colorSelect = document.getElementById("colorSelect");
+colorSelect.onchange = () => recolorTrail(colorSelect.value);
+recolorTrail("speed");
+
+// ---------- telemetry plots (MATLAB-styled 2D canvases) ----------
+const times = frames.map(f => f.t);
+const plotSpecs = [
+  { id: "plotAlt", title: "Feet altitude [m]", series: [{ key: f => f.feet, color: "#0072bd" }] },
+  { id: "plotVz", title: "Vertical speed [m/s]", series: [{ key: f => f.vz, color: "#0072bd" }] },
+  { id: "plotThrottle", title: "Throttle [-]", series: [{ key: f => f.throttle, color: "#d95319" }], limits: [0, 1] },
+  { id: "plotGimbal", title: "Gimbal [deg]  x blue, y orange", series: [{ key: f => f.gimbal[0] * 180 / Math.PI, color: "#0072bd" }, { key: f => f.gimbal[1] * 180 / Math.PI, color: "#d95319" }] },
+  { id: "plotTilt", title: "Tilt [deg]", series: [{ key: f => f.tilt, color: "#7e2f8e" }] },
+  { id: "plotLoad", title: "Load factor [g]  and propellant [-] green", series: [{ key: f => f.load, color: "#a2142f" }, { key: f => f.propellant, color: "#77ac30" }] },
+];
+for (const spec of plotSpecs) {
+  spec.canvas = document.getElementById(spec.id);
+  spec.data = spec.series.map(s => frames.map(s.key));
+  const all = spec.data.flat();
+  spec.min = spec.limits ? spec.limits[0] : Math.min(...all);
+  spec.max = spec.limits ? spec.limits[1] : Math.max(...all);
+  if (spec.max - spec.min < 1e-9) { spec.max = spec.min + 1; }
+  const pad = 0.05 * (spec.max - spec.min); if (!spec.limits) { spec.min -= pad; spec.max += pad; }
+}
+function niceTicks(min, max, count) {
+  const span = max - min, raw = span / count, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 5, 10].map(m => m * mag).find(s => span / s <= count) || 10 * mag;
+  const ticks = []; for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) ticks.push(v);
+  return ticks;
+}
+function drawPlot(spec, tNow) {
+  const canvas = spec.canvas, dpr = Math.min(window.devicePixelRatio, 2);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== w * dpr || canvas.height !== h * dpr) { canvas.width = w * dpr; canvas.height = h * dpr; }
+  const ctx = canvas.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, w, h);
+  const left = 46, right = 10, top = 20, bottom = 18, pw = w - left - right, ph = h - top - bottom;
+  const x = t => left + pw * t / duration, y = v => top + ph * (1 - (v - spec.min) / (spec.max - spec.min));
+  ctx.strokeStyle = "#e0e0e0"; ctx.lineWidth = 1; ctx.fillStyle = "#333"; ctx.font = "10px Helvetica, Arial, sans-serif";
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (const v of niceTicks(spec.min, spec.max, 4)) { ctx.beginPath(); ctx.moveTo(left, y(v)); ctx.lineTo(left + pw, y(v)); ctx.stroke(); ctx.fillText(Math.abs(v) >= 100 ? v.toFixed(0) : +v.toFixed(2), left - 4, y(v)); }
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (const t of niceTicks(0, duration, 5)) { ctx.beginPath(); ctx.moveTo(x(t), top); ctx.lineTo(x(t), top + ph); ctx.stroke(); ctx.fillText(t.toFixed(0), x(t), top + ph + 3); }
+  ctx.strokeStyle = "#222"; ctx.strokeRect(left, top, pw, ph);
+  ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.font = "bold 11px Helvetica, Arial, sans-serif"; ctx.fillStyle = "#111";
+  ctx.fillText(spec.title, left, 13);
+  ctx.lineWidth = 1.5;
+  spec.series.forEach((s, k) => {
+    ctx.strokeStyle = s.color; ctx.beginPath();
+    spec.data[k].forEach((v, i) => { const px = x(times[i]), py = y(clamp(v, spec.min, spec.max)); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+    ctx.stroke();
+  });
+  ctx.strokeStyle = "#e00"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x(tNow), top); ctx.lineTo(x(tNow), top + ph); ctx.stroke();
+  const { a, b, s } = frameAt(tNow);
+  spec.series.forEach((ser, k) => {
+    const v = lerp(ser.key(a), ser.key(b), s);
+    ctx.fillStyle = ser.color; ctx.beginPath(); ctx.arc(x(tNow), y(clamp(v, spec.min, spec.max)), 3.5, 0, 2 * Math.PI); ctx.fill();
+    ctx.fillStyle = "#111"; ctx.font = "10px Menlo, Consolas, monospace"; ctx.textAlign = "right";
+    ctx.fillText(v.toFixed(2), left + pw - 3, top + 11 + 11 * k);
+  });
+}
+
+// ---------- playback ----------
+const el = id => document.getElementById(id);
+const hud = { time: el("hudTime"), alt: el("hudAlt"), vz: el("hudVz"), speed: el("hudSpeed"), tilt: el("hudTilt"), load: el("hudLoad"),
+  throttle: el("hudThrottle"), gimbal: el("hudGimbal"), prop: el("hudProp"), offset: el("hudOffset"), zem: el("hudZem"), wind: el("hudWind"), end: el("end") };
+const playButton = el("playButton"), slider = el("timeSlider"), speedSelect = el("speedSelect"), cameraSelect = el("cameraSelect"), themeSelect = el("themeSelect"), stamp = el("stamp");
+hud.wind.textContent = replay.environment.windMeanSpeed.toFixed(1) + " m/s +x";
+
+let playing = true, simTime = 0, lastWall = performance.now(), frameIndex = 0;
+playButton.onclick = () => { playing = !playing; playButton.textContent = playing ? "Pause" : "Play"; if (playing && simTime >= duration) simTime = 0; };
+slider.oninput = () => { simTime = duration * slider.value / 1000; frameIndex = 0; };
+
+function frameAt(t) {
+  while (frameIndex < frames.length - 2 && frames[frameIndex + 1].t <= t) frameIndex++;
+  while (frameIndex > 0 && frames[frameIndex].t > t) frameIndex--;
+  const a = frames[frameIndex], b = frames[Math.min(frameIndex + 1, frames.length - 1)];
+  const s = b.t > a.t ? clamp((t - a.t) / (b.t - a.t), 0, 1) : 0;
+  return { a, b, s };
+}
+
+const qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
+function apply(t) {
+  const { a, b, s } = frameAt(t);
+  rocket.position.set(lerp(a.p[0], b.p[0], s), lerp(a.p[1], b.p[1], s), lerp(a.p[2], b.p[2], s));
+  qa.set(a.q[1], a.q[2], a.q[3], a.q[0]); qb.set(b.q[1], b.q[2], b.q[3], b.q[0]);   // three.js takes (x, y, z, w)
+  rocket.quaternion.copy(qa.slerp(qb, s));
+  const cg = lerp(a.cg, b.cg, s);
+  hull.position.z = -cg;
+
+  const throttle = lerp(a.throttle, b.throttle, s), gx = lerp(a.gimbal[0], b.gimbal[0], s), gy = lerp(a.gimbal[1], b.gimbal[1], s);
+  const flameLength = throttle > 0 ? 3 + 9 * throttle : 0;
+  flame.visible = throttle > 0;
+  flame.scale.set(1 + 0.6 * throttle, 1 + 0.6 * throttle, Math.max(flameLength, 1e-3));
+  tmp.set(Math.tan(gx), Math.tan(gy), 1).normalize();                  // thrust direction in body
+  flame.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tmp);
+  flame.children.forEach(m => { if (m.material) m.material.opacity = 0.6 + 0.3 * Math.random(); });
+  flameLight.intensity = throttle > 0 ? 600 * throttle : 0; flameLight.position.z = -flameLength * 0.3;
+
+  // Thrust arrow: from the engine, along the thrust direction rotated to world, length ~ throttle.
+  const engineWorld = rocket.localToWorld(new THREE.Vector3(0, 0, -cg));
+  const thrustWorld = tmp.clone().applyQuaternion(rocket.quaternion);
+  thrustArrow.position.copy(engineWorld); thrustArrow.setDirection(thrustWorld);
+  thrustArrow.setLength(Math.max(0.01, 25 * throttle), 2.5, 1.2); thrustArrow.visible = throttle > 0;
+  const v = new THREE.Vector3(lerp(a.v[0], b.v[0], s), lerp(a.v[1], b.v[1], s), lerp(a.v[2], b.v[2], s));
+  const speed = v.length();
+  velocityArrow.position.copy(rocket.position); velocityArrow.visible = speed > 0.2;
+  if (speed > 0.2) { velocityArrow.setDirection(v.clone().normalize()); velocityArrow.setLength(4 + 0.4 * speed, 2.5, 1.2); }
+
+  // Zero-effort impact point and ground track helpers.
+  const zx = lerp(a.zem[0], b.zem[0], s), zy = lerp(a.zem[1], b.zem[1], s);
+  zemMarker.position.set(zx, zy, 0.4);
+  zemLine.geometry.setFromPoints([rocket.position, new THREE.Vector3(zx, zy, 0.4)]); zemLine.computeLineDistances();
+  dropLine.geometry.setFromPoints([rocket.position, new THREE.Vector3(rocket.position.x, rocket.position.y, 0.3)]);
+  groundDot.position.set(rocket.position.x, rocket.position.y, 0.35);
+  trailGeometry.instanceCount = Math.max(0, frameIndex);
+  groundGeometry.instanceCount = Math.max(0, frameIndex);
+
+  const feet = rocket.position.z - cg, offset = Math.hypot(rocket.position.x, rocket.position.y);
+  hud.time.textContent = t.toFixed(2) + " s";
+  hud.alt.textContent = feet.toFixed(1) + " m";
+  hud.vz.textContent = lerp(a.vz, b.vz, s).toFixed(2) + " m/s";
+  hud.speed.textContent = speed.toFixed(2) + " m/s";
+  hud.tilt.textContent = lerp(a.tilt, b.tilt, s).toFixed(2) + " deg";
+  hud.load.textContent = lerp(a.load, b.load, s).toFixed(2) + " g";
+  hud.throttle.textContent = (100 * throttle).toFixed(1) + " %";
+  hud.gimbal.textContent = (gx * 180 / Math.PI).toFixed(2) + " / " + (gy * 180 / Math.PI).toFixed(2) + " deg";
+  hud.prop.textContent = (100 * lerp(a.propellant, b.propellant, s)).toFixed(1) + " %";
+  hud.offset.textContent = offset.toFixed(2) + " m";
+  hud.zem.textContent = Math.hypot(zx, zy).toFixed(1) + " m in " + lerp(a.zem[2], b.zem[2], s).toFixed(1) + " s";
+  hud.end.textContent = t >= duration - 1e-6 ? replay.endReason : "running";
+  stamp.textContent = t.toFixed(2) + " / " + duration.toFixed(2) + " s";
+
+  sunTarget.position.copy(rocket.position);
+  sun.position.set(rocket.position.x - 300, rocket.position.y - 200, rocket.position.z + 500);
+  for (const spec of plotSpecs) drawPlot(spec, t);
+}
+
+let cameraMode = "chase";
+cameraSelect.onchange = () => { cameraMode = cameraSelect.value; if (cameraMode === "pad") camera.position.set(70, -70, 14); };
+function placeCamera() {
+  const p = rocket.position;
+  if (cameraMode === "chase") {
+    const altitude = Math.max(p.z, 5), back = 28 + 0.12 * altitude;
+    camera.position.lerp(new THREE.Vector3(p.x + back, p.y - back * 1.2, p.z + 8 + 0.08 * altitude), 0.08);
+    controls.target.lerp(p, 0.2);
+  } else {
+    controls.target.lerp(cameraMode === "pad" ? new THREE.Vector3(p.x, p.y, Math.max(p.z, 5)) : p, 0.2);
+  }
+}
+camera.position.set(frames[0].p[0] + 80, frames[0].p[1] - 100, frames[0].p[2] + 30);
+controls.target.set(frames[0].p[0], frames[0].p[1], frames[0].p[2]);
+
+const themes = {
+  dark: { bg: 0x0a1a33, fog: 0x0a1a33, ground: 0x1c2a44, minor: 0x2b3d61, major: 0x5f7bb3 },
+  light: { bg: 0xffffff, fog: 0xffffff, ground: 0xe9ecef, minor: 0xd0d4da, major: 0x8a9099 },
+};
+function applyTheme(name) {
+  const th = themes[name];
+  document.documentElement.dataset.theme = name;
+  scene.background = new THREE.Color(th.bg);
+  scene.fog = new THREE.Fog(th.fog, 500, 3000);
+  groundMaterial.color.setHex(th.ground);
+  gridMinor.material.color.setHex(th.minor); gridMajor.material.color.setHex(th.major);
+}
+themeSelect.onchange = () => applyTheme(themeSelect.value);
+applyTheme("dark");
+
+function resize() {
+  const w = container.clientWidth, h = container.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  trailMaterial.resolution.set(w, h); groundTrack.material.resolution.set(w, h);
+}
+window.addEventListener("resize", resize);
+resize();
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dtWall = (now - lastWall) / 1000; lastWall = now;
+  if (playing) {
+    simTime += dtWall * parseFloat(speedSelect.value);
+    if (simTime >= duration) { simTime = duration; playing = false; playButton.textContent = "Replay"; }
+    slider.value = Math.round(1000 * simTime / duration);
+  }
+  apply(simTime);
+  placeCamera();
+  controls.update();
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

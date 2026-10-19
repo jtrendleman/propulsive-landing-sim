@@ -1,0 +1,116 @@
+References
+==========
+
+Every number in config/ that is not derived from physics comes from one of these. Each entry: what it
+supports, where it is used, and how far to trust it. Accessed 10-19-2026 unless noted.
+
+Vehicle: Falcon 9 Block 5 first stage
+-------------------------------------
+[1] Wikipedia, "Falcon 9 Block 5". https://en.wikipedia.org/wiki/Falcon_9_Block_5
+    First stage height 41.2 m, nine Merlin 1D engines, Block 5 reuse goals. Secondary source.
+[2] Wevolver, "Falcon Heavy Block 5" tech specs. https://wevolver.com/specs/falcon-heavy-block-5
+    Stage empty mass 22,200 kg, 42.6 m by 3.66 m. Aggregator; which vehicle the mass refers to is not stated.
+[3] Wevolver, "Falcon 9 v1.2 or Full Thrust - Block 5". https://wevolver.com/specs/falcon-9-v12-or-full-thrust-block-5
+    Gimballed engines for pitch and yaw, nitrogen thrusters and grid fins for coast and descent. Aggregator.
+[4] National Space Society, "May 11, 2018 Launch of the Block 5 Falcon 9".
+    https://nss.org/2018-milestones-in-space-development-may-11-2018-launch-of-the-block-5-falcon-9
+    Titanium grid fins replaced aluminium on Block 5.
+
+Engine: Merlin 1D
+-----------------
+[5] Wikipedia, "SpaceX Merlin". https://en.wikipedia.org/wiki/SpaceX_Merlin
+    Sea-level thrust 845 kN, sea-level Isp 282 s (entry flagged as needing an update). Secondary source.
+[6] Wevolver, "Merlin Engine (Merlin-1D)". https://www.wevolver.com/specs/merlin-engine-merlin-1d-falcon-9-falcon-heavy
+    Throttle range 100 % to 57 % (845 to 482 kN at sea level). Aggregator.
+
+Landing
+-------
+[7] NASA Safety and Mission Assurance, Space Launch Report: SpaceX Falcon 9 v1.2 Data Sheet.
+    https://sma.nasa.gov/LaunchVehicle/assets/spacex-falcon-9-v1.2-data-sheet.pdf
+    About 32 s single-engine (centre engine) landing burn on an RTLS landing at Landing Zone 1. Text partly garbled.
+[8] NASA Safety and Mission Assurance, Space Launch Report: SpaceX Falcon 9 v1.1 Data Sheet.
+    https://sma.nasa.gov/LaunchVehicle/assets/space-launch-report-falcon-9-data-sheet.pdf
+    Centre engine reignites for the landing burn; legs deploy about 10 s after burn start.
+[9] Christian Science Monitor, "A rocket with landing gear? SpaceX seems to think it's a good idea", 2014.
+    https://csmonitor.com/Science/2014/0225/A-rocket-with-landing-gear-SpaceX-seems-to-think-it-s-a-good-idea
+    Landing legs "~60 ft span" (about 18.3 m), quoting Elon Musk.
+[10] Aviation News, "X marks the spot: Falcon 9 attempts ocean platform landing", 2014.
+    https://aviationnews.eu/news/2014/12/x-marks-the-spot-falcon-9-attempts-ocean-platform-landing/
+    Legspan about 70 ft (about 21.3 m).
+
+Flight telemetry
+----------------
+[11] shahar603, Telemetry-Data (SpaceX webcast telemetry, Unlicense). https://github.com/shahar603/Telemetry-Data
+    Time, speed and altitude at 30 fps extracted from SpaceX webcasts; per-stage files where shown.
+[12] shahar603, Launch Dashboard API. https://gh.nn.ci/shahar603/Launch-Dashboard-API
+    REST interface to the same telemetry, with derived fields.
+
+Slosh and tanks
+---------------
+[13] H. N. Abramson (ed.), "The Dynamic Behavior of Liquids in Moving Containers", NASA SP-106, 1966.
+    First-mode equivalent mechanical models (mass fraction, frequency, mass station, pendulum analogy).
+[14] H. Lamb, "Hydrodynamics", 6th ed., Cambridge University Press, 1932, Art. 186-193.
+    Shallow-water oscillations in a paraboloidal basin; first mode of a shallow pool in a bowl.
+
+Derived from [11] (stage 1 raw.json, resampled to a 1 s grid; the webcast shows altitude to 0.1 km)
+----------------------------------------------------------------------------------------------
+[D1] RTLS landing-burn ignition (CRS-11, CRS-12, SAOCOM 1A, ZUMA): altitude 4.3 to 4.7 km, speed 298 to 313 m/s,
+     burn to standstill 30 to 33 s (ZUMA 23 s), mean deceleration of speed 9.4 to 13.0 m/s^2.
+[D2] Ballistic coefficient m / (Cd A) in the engine-off fall just before ignition, from dv/dt = g - rho v^2 / (2 beta)
+     with ISA density: 2044 to 2170 kg/m^2 (medians), range 1873 to 2422. Assumes a near-vertical fall.
+[D3] Late-burn deceleration of about 10 m/s^2 below 100 m/s (drag negligible) means thrust / mass of about 20 m/s^2:
+     at the 57 % throttle floor (482 kN [6]) that is about 24 t, consistent with a 22.2 t dry stage [2] plus residuals.
+
+Further vehicle sources
+-----------------------
+[15] Wikipedia, "Falcon 9". https://en.wikipedia.org/wiki/Falcon_9
+     Block 5 first stage dry mass about 25,600 kg (heavier than v1.2's 22,200 kg [2]); legs of carbon fibre and
+     aluminium honeycomb. Secondary source.
+[16] Wikipedia, "Falcon 9 Full Thrust". https://en.wikipedia.org/wiki/Falcon_9_Full_Thrust
+     Propellant capacity LOX 287,400 kg / RP-1 123,500 kg (O/F about 2.33); densified LOX at 66.5 K, chilled RP-1 at
+     266.5 K; sea-level Isp 282 s, vacuum 311 s; aluminium-lithium tanks.
+[17] Wikipedia, "Falcon 9 prototypes". https://en.wikipedia.org/wiki/Falcon_9_prototypes
+     F9R Dev1 landing legs: about 18 m deployed span, under 2,100 kg for the set.
+[18] Spaceflight Now, Falcon 9 launch report of 2017-06-25 (Iridium NEXT 2), quoting Elon Musk: titanium grid
+     fins, closed-loop hydraulics on the new fins; four fins.
+[19] BGR / aggregator reporting of the grid fins: about 21 sq ft (1.95 m^2) each, about 1.2 by 1.5 m. Aggregator.
+[20] Space.com, Radarsat Constellation launch coverage (2019), quoting Elon Musk on the pad's radio-reflective
+     paint making "the radar" more precise: indirect evidence of a radar altimeter.
+[21] S. F. Hoerner, "Fluid-Dynamic Drag", 1965. Blunt cylinder axial drag 0.8 to 1.0; cylinder crossflow drag 1.2
+     subcritical, 0.6 to 0.8 at Reynolds numbers above about 1e6 (post-critical).
+[22] MIL-HDBK-1797, Flying Qualities of Piloted Aircraft, low-altitude Dryden turbulence: sigma about 0.1 to 0.2
+     of the 20 ft wind.
+[23] NASA SP-8031, "Slosh Suppression", 1969. Damping ratios of unbaffled and baffled tanks.
+[24] NASA Range Reference Atmosphere, KSC (1983). https://ntrs.nasa.gov/citations/19830021664
+     KSC surface wind climatology (scanned; numbers not extracted).
+[25] NASA/TM-2008-215633, Terrestrial Environment (Climatic) Criteria Guidelines. https://ntrs.nasa.gov/citations/20090022159
+     Gust factors 1.3 to 1.5 at KSC (document not fully read).
+[26] NASA 18.3 m design wind profile. https://ntrs.nasa.gov/citations/19690008737
+     Power-law exponent 0.14 to 0.2; 10 to 30 deg veer across the boundary layer.
+[27] NIST Chemistry WebBook, oxygen saturated-liquid density: about 1,240 kg/m^3 at 66.5 K.
+
+Navigation
+----------
+[28] FAA William J. Hughes Technical Center, GPS SPS Performance Analysis Report #102 (Q2 2018).
+     https://www.nstb.tc.faa.gov/reports/2018_Q2_SPS_PAN102_v1.0.pdf
+     Worst-station 95 % horizontal error 5.48 m, vertical 12.20 m; Q1 2018 (#101) worst horizontal 3.95 m.
+     https://www.nstb.tc.faa.gov/REPORTS/PAN101_0518.pdf
+[29] u-blox, ZED-F9P product summary (UBX-17005151).
+     https://incremental-content.u-blox.com/sites/default/files/ZED-F9P_ProductSummary_UBX-17005151.pdf
+     RTK position accuracy 0.01 m + 1 ppm CEP, RTK update rate up to 20 Hz. Datasheet (05B variant):
+     https://shop.richardsonrfpd.com/docs/rfpd/ZED-F9P-05B.pdf  velocity accuracy 0.05 m/s.
+[30] Honeywell Aerospace, HG9900 inertial measurement unit (navigation-grade ring-laser gyros, quartz accelerometers).
+     https://aerospace.honeywell.com/us/en/products-and-services/products/navigation-and-sensors/inertial-measurement-units/hg9900-inertial-measurement-unit
+     Gyro bias in-run stability 0.0021 deg/h (1 sigma); accelerometer bias in-run stability 0.025 mg (1 sigma).
+     Gyro angle random walk listed as 0.0021 without units (taken as deg/sqrt(h)); product page, not the datasheet.
+
+Aerodynamics with the engine on
+-------------------------------
+[31] A. M. Korzun, J. R. Cruz, R. D. Braun, "A Survey of Supersonic Retropropulsion Technology for Mars Entry,
+     Descent, and Landing", IEEE Aerospace Conference, 2008.
+     https://ssdl1.gatech.edu/sites/default/files/ssdl-files/papers/conferencePapers/IEEE-2008-1246.pdf
+     Central-nozzle retropropulsion reduces aerodynamic drag; at high thrust coefficients the axial force is
+     thrust alone, with no aerodynamic drag contribution.
+[D4] Burn energy check on [11]: over the ~33 s RTLS landing burn speed falls ~310 m/s against ~324 m/s of gravity
+     loss, so (thrust + drag) / mass averages ~19 m/s^2. Full body drag mid-burn (~150 m/s at 2 km) would be
+     ~6 m/s^2, leaving a mean throttle below the 57 % floor [6]; the plume must remove most of the body's drag.

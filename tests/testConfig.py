@@ -16,16 +16,16 @@ nominalPath = repoRoot / "config" / "earthBooster.toml"
 
 def writeVariant(tmpPath, oldText, newText):
     """Copy the nominal TOML to tmpPath with one substring replaced, return its path."""
-    text = nominalPath.read_text()
+    text = nominalPath.read_text(encoding="utf-8")
     assert oldText in text, f"test setup: {oldText!r} not found in nominal config"
     variantPath = tmpPath / "variant.toml"
-    variantPath.write_text(text.replace(oldText, newText))
+    variantPath.write_text(text.replace(oldText, newText), encoding="utf-8")
     return variantPath
 
 
 def testLoadsNominalFile():
     cfg = loadConfig(nominalPath)
-    assert cfg.spacecraft.mass.dryMass == 1000.0
+    assert cfg.spacecraft.mass.dryMass == 25600.0                # Falcon 9 Block 5-class first stage
     assert cfg.environment.gravity == 9.81
     assert cfg.mission.maxTime == 120.0
     assert isinstance(cfg.spacecraft.mass.inertiaDry, tuple)
@@ -50,3 +50,17 @@ def testMissingKeyRaises(tmp_path):
     with pytest.raises(ConfigError) as err:
         loadConfig(badPath)
     assert "gravity" in str(err.value)
+
+
+def testGuidanceTableLoads():
+    cfg = loadConfig(nominalPath)
+    assert cfg.guidance.referenceDecel == 18.0
+    assert cfg.guidance.coast is True
+    assert cfg.guidance.descentRate < 0.0
+
+
+def testExtremeScenarioSharesTheVehicle():
+    average = loadConfig(nominalPath)
+    extreme = loadConfig(repoRoot / "config" / "earthBoosterKscExtreme.toml")
+    assert extreme.spacecraft == average.spacecraft and extreme.mission == average.mission
+    assert extreme.environment.wind.meanSpeed > average.environment.wind.meanSpeed

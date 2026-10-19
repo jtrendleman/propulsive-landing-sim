@@ -34,7 +34,7 @@ def restState(altitude):
 def testArrayRoundTrip():
     s = restState(1000.0)
     back = State.fromArray(s.toArray())
-    assert s.toArray().shape == (14,)
+    assert s.toArray().shape == (22,)
     assert np.allclose(back.position, s.position)
     assert np.allclose(back.velocity, s.velocity)
     assert np.allclose(back.quaternion, s.quaternion)
@@ -79,7 +79,7 @@ def testRk4OnExponential():
 
 def testDerivativeOfRestStateIsPureGravity():
     d = stateDerivative(restState(1000.0), [], noCommands, 0.0, cfg.spacecraft, cfg.environment)
-    assert d.shape == (14,)
+    assert d.shape == (22,)
     assert np.allclose(d[0:3], 0.0)                              # dPosition = velocity = 0
     assert np.allclose(d[3:6], [0.0, 0.0, -cfg.environment.gravity])  # dVelocity = g
     assert np.allclose(d[6:], 0.0)                               # no rotation, no mass flow
@@ -119,10 +119,28 @@ def testCgEqualsDryCgWhenTankEmpty():
 def testCgAtInitialMassIsWeightedAverage():
     sc = cfg.spacecraft
     props = massProperties(restState(1000.0), sc)
-    liquidHeight = sc.propellant.initialMass / (sc.propellant.density * np.pi * sc.propellant.tankRadius**2)
-    cgPropellant = sc.propellant.tankBottomHeight + liquidHeight / 2
-    expected = (sc.mass.dryMass * sc.mass.cgHeightDry + sc.propellant.initialMass * cgPropellant) / props.total
+    from landingSim.vehicle.tank import tankFill, tankMasses
+    oxidizer, fuel = tankMasses(sc.propellant.initialMass, sc.propellant)
+    assert oxidizer / fuel == pytest.approx(sc.propellant.mixtureRatio)
+    moment = sum(m * (tank.tankBottomHeight + tankFill(m, tank).centroidHeight)
+                 for m, tank in ((oxidizer, sc.propellant.oxidizer), (fuel, sc.propellant.fuel)))
+    expected = (sc.mass.dryMass * sc.mass.cgHeightDry + moment) / props.total
     assert props.cgHeight == pytest.approx(expected)
+
+
+def testFlatFloorKeepsTheCylinderCentroid():
+    import dataclasses
+    sc = cfg.spacecraft
+    from landingSim.vehicle.tank import tankMasses
+    prop = sc.propellant
+    flat = dataclasses.replace(sc, propellant=dataclasses.replace(prop, oxidizer=dataclasses.replace(prop.oxidizer, domeRatio=0.0),
+                                                                  fuel=dataclasses.replace(prop.fuel, domeRatio=0.0)))
+    moment = 0.0
+    for m, tank in zip(tankMasses(prop.initialMass, prop), (prop.oxidizer, prop.fuel)):
+        liquidHeight = m / (tank.density * np.pi * tank.tankRadius**2)
+        moment += m * (tank.tankBottomHeight + liquidHeight / 2)
+    expected = (sc.mass.dryMass * sc.mass.cgHeightDry + moment) / (sc.mass.dryMass + prop.initialMass)
+    assert massProperties(restState(1000.0), flat).cgHeight == pytest.approx(expected)
 
 
 

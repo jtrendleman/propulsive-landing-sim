@@ -50,13 +50,24 @@ def quatToRotationMatrix(q):
     row2 = [2*(x*z - w*y),         2*(y*z + w*x),         1 - 2*(x**2 + y**2)]
     return np.array([row0, row1, row2])
 
+def cross3(a, b):
+    """Cross product of two 3-vectors. numpy.cross spends most of its time on axis bookkeeping for inputs this small."""
+    return np.array([a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]])
+
+
 def rotateBodyToWorld(q, v):
-    R = quatToRotationMatrix(q)
-    return R @ v
+    """v' = v + 2 w (u x v) + 2 u x (u x v) with q = [w, u]; same result as quatToRotationMatrix(q) @ v, several times faster."""
+    w = q[0]
+    u = q[1:4]
+    t = 2.0 * cross3(u, v)
+    return v + w * t + cross3(u, t)
 
 def rotateWorldToBody(q, v):
-    R = quatToRotationMatrix(q)
-    return R.T @ v
+    """Inverse rotation: conjugate quaternion, same closed form."""
+    w = q[0]
+    u = -q[1:4]
+    t = 2.0 * cross3(u, v)
+    return v + w * t + cross3(u, t)
 
 def quatDerivative(q, omega):
     # omega in BODY frame. For a body-to-world quaternion:
